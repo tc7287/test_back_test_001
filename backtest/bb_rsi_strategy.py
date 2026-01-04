@@ -27,7 +27,8 @@ class BBRSIStrategy(BaseStrategy):
         rsi_period: int = 14,
         rsi_oversold: int = 30,
         rsi_overbought: int = 70,
-        stop_loss: float = 0.02
+        stop_loss: float = 0.02,
+        use_aggressive_exit: bool = False
     ):
         """
         Args:
@@ -37,6 +38,7 @@ class BBRSIStrategy(BaseStrategy):
             rsi_oversold: 과매도 기준
             rsi_overbought: 과매수 기준
             stop_loss: 손절 비율 (0.02 = 2%)
+            use_aggressive_exit: 공격적 청산 사용 여부 (False: 중심선, True: 상단선)
         """
         self.bb_period = bb_period
         self.bb_std = bb_std
@@ -44,6 +46,7 @@ class BBRSIStrategy(BaseStrategy):
         self.rsi_oversold = rsi_oversold
         self.rsi_overbought = rsi_overbought
         self.stop_loss = stop_loss
+        self.use_aggressive_exit = use_aggressive_exit
     
     @property
     def name(self) -> str:
@@ -92,6 +95,15 @@ class BBRSIStrategy(BaseStrategy):
                 param_type="int"
             ),
             StrategyParameter(
+                name="rsi_overbought",
+                label="RSI 과매수 (청산)",
+                default=70,
+                min_value=60,
+                max_value=90,
+                step=5,
+                param_type="int"
+            ),
+            StrategyParameter(
                 name="stop_loss",
                 label="손절 비율 (%)",
                 default=2.0,
@@ -99,6 +111,12 @@ class BBRSIStrategy(BaseStrategy):
                 max_value=5.0,
                 step=0.5,
                 param_type="float"
+            ),
+            StrategyParameter(
+                name="use_aggressive_exit",
+                label="공격적 익절 (상단선)",
+                default=False,
+                param_type="bool"
             )
         ]
     
@@ -144,7 +162,7 @@ class BBRSIStrategy(BaseStrategy):
             np.nan
         )
         
-        # 청산 조건 계산: 중심선 도달 또는 손절
+        # 청산 조건 계산
         df['exit_price'] = np.nan
         df['exit_reason'] = ''
         
@@ -162,7 +180,9 @@ class BBRSIStrategy(BaseStrategy):
             
             elif in_position and i > entry_idx:
                 current_price = df['close'].iloc[i]
-                middle_band = df['bb_middle'].iloc[i]
+                
+                # 익절 기준 설정 (상단선 vs 중심선)
+                target_band = df['bb_upper'].iloc[i] if self.use_aggressive_exit else df['bb_middle'].iloc[i]
                 
                 # 손절 체크
                 loss_pct = (current_price - entry_price) / entry_price
@@ -171,10 +191,16 @@ class BBRSIStrategy(BaseStrategy):
                     df.loc[df.index[entry_idx], 'exit_reason'] = 'stop_loss'
                     in_position = False
                 
-                # 익절 체크 (중심선 도달)
-                elif current_price >= middle_band:
+                # 익절 체크 1: 목표 밴드 도달
+                elif current_price >= target_band:
                     df.loc[df.index[entry_idx], 'exit_price'] = current_price
-                    df.loc[df.index[entry_idx], 'exit_reason'] = 'take_profit'
+                    df.loc[df.index[entry_idx], 'exit_reason'] = 'take_profit_band'
+                    in_position = False
+                    
+                # 익절 체크 2: RSI 과매수 도달
+                elif df['rsi'].iloc[i] >= self.rsi_overbought:
+                    df.loc[df.index[entry_idx], 'exit_price'] = current_price
+                    df.loc[df.index[entry_idx], 'exit_reason'] = 'take_profit_rsi'
                     in_position = False
         
         # 수익률 계산
@@ -189,7 +215,13 @@ class BBRSIStrategy(BaseStrategy):
     def get_trade_rationale(self, row: pd.Series, ticker: str) -> str:
         """거래 근거 생성"""
         date_str = row.name.strftime('%Y-%m-%d') if hasattr(row.name, 'strftime') else str(row.name)
-        exit_reason = "중심선 도달 (익절)" if row.get('exit_reason') == 'take_profit' else "손절"
+        
+        exit_reason_map = {
+            'take_profit_band': f"목표 밴드 도달 ({'상단선' if self.use_aggressive_exit else '중심선'})",
+            'take_profit_rsi': f"RSI 과매수 ({self.rsi_overbought} 이상)",
+            'stop_loss': "손절매"
+        }
+        exit_reason = exit_reason_map.get(row.get('exit_reason'), "기타")
         
         return f"""
 **매수 근거 (BB-RSI 역추세)**
