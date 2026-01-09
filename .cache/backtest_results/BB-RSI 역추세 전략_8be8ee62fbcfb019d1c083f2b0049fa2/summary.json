@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "strategy": "BB-RSI 역추세 전략",
+    "params": {
+      "bb_period": 30,
+      "bb_std": 1.5,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 80,
+      "stop_loss": 0.01,
+      "use_aggressive_exit": false
+    },
+    "period": {
+      "start": "2022-01-01",
+      "end": "2022-12-31"
+    },
+    "timestamp": "2026-01-09T23:17:55.708248",
+    "tickers_count": 20
+  },
+  "result": {
+    "summary": {
+      "total_return": -55.3529158848491,
+      "cagr": -55.4763800540851,
+      "sharpe_ratio": -1.443056808105002,
+      "mdd": 75.02895649814693,
+      "win_rate": 22.875816993464053,
+      "profit_factor": 0.8030180517821685,
+      "expectancy": -0.41944097890708637,
+      "total_trades": 153,
+      "avg_return_per_trade": -0.4194409789070871,
+      "benchmark_return": 0.0
+    }
+  }
+}

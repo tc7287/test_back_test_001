@@ -77,6 +77,23 @@ class BaseStrategy(ABC):
             매매 근거 문자열 (마크다운)
         """
         pass
+
+    def get_indicators(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """
+        차트에 표시할 보조 지표 정보를 반환
+        
+        Returns:
+            List of dicts: [
+                {
+                    'name': 'RSI',
+                    'data': pd.Series,
+                    'type': 'secondary',  # 'overlay' or 'secondary'
+                    'color': 'purple',
+                    'axis_range': [0, 100]
+                }
+            ]
+        """
+        return []
     
     def backtest_single(self, df: pd.DataFrame, ticker: str) -> Dict:
         """

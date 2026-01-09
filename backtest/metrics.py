@@ -26,6 +26,7 @@ class PerformanceMetrics:
     total_trades: int
     total_return: float
     avg_return_per_trade: float
+    benchmark_return: float = 0.0
 
 
 def calculate_sharpe_ratio(
@@ -222,7 +223,8 @@ def calculate_all_metrics(
         expectancy=calculate_expectancy(trades) * 100,
         total_trades=len(trades),
         total_return=total_return * 100,
-        avg_return_per_trade=returns.mean() * 100 if len(returns) > 0 else 0
+        avg_return_per_trade=returns.mean() * 100 if len(returns) > 0 else 0,
+        benchmark_return=0.0
     )
 
 

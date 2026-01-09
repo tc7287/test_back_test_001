@@ -1,0 +1,6 @@
+bb_period: 10
+bb_std: 1.0
+rsi_period: 7
+rsi_oversold: 20
+rsi_overbought: 65
+stop_loss: 0.01

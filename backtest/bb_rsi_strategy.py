@@ -8,7 +8,7 @@ BB-RSI 역추세 전략 (Bollinger Bands + RSI Counter-trend Strategy)
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Any
 from backtest.base_strategy import BaseStrategy, StrategyParameter
 
 
@@ -81,7 +81,7 @@ class BBRSIStrategy(BaseStrategy):
                 label="RSI 기간",
                 default=14,
                 min_value=7,
-                max_value=21,
+                max_value=14,
                 step=1,
                 param_type="int"
             ),
@@ -188,18 +188,21 @@ class BBRSIStrategy(BaseStrategy):
                 loss_pct = (current_price - entry_price) / entry_price
                 if loss_pct <= -self.stop_loss:
                     df.loc[df.index[entry_idx], 'exit_price'] = current_price
+                    df.loc[df.index[entry_idx], 'exit_date'] = df.index[i]
                     df.loc[df.index[entry_idx], 'exit_reason'] = 'stop_loss'
                     in_position = False
                 
                 # 익절 체크 1: 목표 밴드 도달
                 elif current_price >= target_band:
                     df.loc[df.index[entry_idx], 'exit_price'] = current_price
+                    df.loc[df.index[entry_idx], 'exit_date'] = df.index[i]
                     df.loc[df.index[entry_idx], 'exit_reason'] = 'take_profit_band'
                     in_position = False
                     
                 # 익절 체크 2: RSI 과매수 도달
                 elif df['rsi'].iloc[i] >= self.rsi_overbought:
                     df.loc[df.index[entry_idx], 'exit_price'] = current_price
+                    df.loc[df.index[entry_idx], 'exit_date'] = df.index[i]
                     df.loc[df.index[entry_idx], 'exit_reason'] = 'take_profit_rsi'
                     in_position = False
         
@@ -244,6 +247,67 @@ class BBRSIStrategy(BaseStrategy):
 - 청산 사유: {exit_reason}
 - 수익률: {row['returns']*100:+.2f}%
 """
+
+    def get_indicators(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """차트 표시 지표"""
+        indicators = []
+        
+        # Bollinger Bands (Overlay)
+        if 'bb_upper' in df.columns:
+            indicators.append({
+                'name': 'BB Upper', 
+                'data': df['bb_upper'], 
+                'type': 'overlay', 
+                'color': 'rgba(100, 100, 255, 0.6)'
+            })
+            indicators.append({
+                'name': 'BB Lower', 
+                'data': df['bb_lower'], 
+                'type': 'overlay', 
+                'color': 'rgba(100, 100, 255, 0.6)'
+            })
+            indicators.append({
+                'name': 'BB Middle', 
+                'data': df['bb_middle'], 
+                'type': 'overlay', 
+                'color': 'rgba(255, 165, 0, 0.8)'
+            })
+            
+        # Bollinger Bands (Secondary - Bandwidth)
+        if 'bb_upper' in df.columns and 'bb_lower' in df.columns and 'bb_middle' in df.columns:
+            bandwidth = (df['bb_upper'] - df['bb_lower']) / df['bb_middle'] * 100
+            indicators.append({
+                'name': 'BB Bandwidth',
+                'data': bandwidth,
+                'type': 'secondary',
+                'color': '#4682B4' # SteelBlue
+            })
+            
+        # RSI (Secondary)
+        if 'rsi' in df.columns:
+            indicators.append({
+                'name': 'RSI', 
+                'data': df['rsi'], 
+                'type': 'secondary', 
+                'color': '#9370DB', # MediumPurple
+                'axis_range': [0, 100]
+            })
+            indicators.append({
+                'name': 'Overbought', 
+                'data': pd.Series([self.rsi_overbought]*len(df), index=df.index), 
+                'type': 'secondary', 
+                'color': 'red',
+                'dash': 'dot'
+            })
+            indicators.append({
+                'name': 'Oversold', 
+                'data': pd.Series([self.rsi_oversold]*len(df), index=df.index), 
+                'type': 'secondary', 
+                'color': 'green',
+                'dash': 'dot'
+            })
+            
+        return indicators
 
 
 if __name__ == "__main__":

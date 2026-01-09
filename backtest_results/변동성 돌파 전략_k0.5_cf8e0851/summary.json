@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "strategy": "변동성 돌파 전략",
+    "params": {
+      "k": 0.5
+    },
+    "period": {
+      "start": "2022-01-01",
+      "end": "2022-12-31"
+    },
+    "timestamp": "2026-01-09T23:52:07.616117",
+    "tickers_count": 10
+  },
+  "result": {
+    "summary": {
+      "total_return": -2.3215700991516,
+      "cagr": -2.329448938874401,
+      "sharpe_ratio": 0.08271716763577391,
+      "mdd": 69.05893562484235,
+      "win_rate": 48.700673724735324,
+      "profit_factor": 1.0251689480299124,
+      "expectancy": 0.018589135862826303,
+      "total_trades": 1039,
+      "avg_return_per_trade": 0.018589135862826248,
+      "benchmark_return": 0.0
+    }
+  }
+}

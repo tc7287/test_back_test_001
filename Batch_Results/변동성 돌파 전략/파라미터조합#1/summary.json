@@ -1,0 +1,15 @@
+{
+  "sharpe_ratio": -0.1670089277439929,
+  "cagr": -58.78401816101032,
+  "mdd": 89.62503701112755,
+  "win_rate": 47.2444089456869,
+  "profit_factor": 0.9816957378326906,
+  "expectancy": -0.013870682039978256,
+  "total_trades": 2504,
+  "total_return": -58.65880596161737,
+  "avg_return_per_trade": -0.013870682039978413,
+  "benchmark_return": 0.0,
+  "params": {
+    "k": 0.4
+  }
+}

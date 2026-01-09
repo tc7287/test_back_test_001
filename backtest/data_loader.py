@@ -35,48 +35,81 @@ KOSPI_UNIVERSE = [
 ]
 
 
+from backtest.db_manager import DBManager
+
+# DB 매니저 인스턴스
+db_manager = DBManager()
+
 def get_stock_data(
     ticker: str,
     start_date: str,
     end_date: str
 ) -> Optional[pd.DataFrame]:
     """
-    개별 종목의 OHLCV 데이터 조회
-    
-    Args:
-        ticker: 종목 코드 (예: "005930.KS")
-        start_date: 시작일 (YYYY-MM-DD)
-        end_date: 종료일 (YYYY-MM-DD)
-    
-    Returns:
-        OHLCV DataFrame 또는 None
+    개별 종목의 OHLCV 데이터 조회 (DB 캐싱 적용)
     """
-    try:
-        stock = yf.Ticker(ticker)
-        df = stock.history(start=start_date, end=end_date)
+    # 1. DB에서 데이터 조회
+    df = db_manager.load_data(ticker, start_date, end_date)
+    
+    # 2. 데이터가 없거나 최신 데이터가 필요한지 확인
+    need_update = False
+    fetch_start = start_date
+    
+    if df is None or df.empty:
+        need_update = True
+    else:
+        # 마지막 데이터 날짜 확인
+        last_date = df.index[-1]
+        target_end_date = pd.to_datetime(end_date)
         
-        if df.empty:
-            print(f"[WARN] No data for {ticker}")
+        # 오늘 날짜 (미래 데이터 요청 방지)
+        today = pd.Timestamp.now().normalize()
+        if target_end_date > today:
+            target_end_date = today
+            
+        # 마지막 데이터가 목표 종료일보다 3일 이상 오래되었으면 업데이트 시도 (주말/휴장일 고려 여유)
+        if last_date < target_end_date - pd.Timedelta(days=3):
+            need_update = True
+            fetch_start = (last_date + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+
+    # 3. 필요 시 yfinance에서 다운로드 및 DB 저장
+    if need_update:
+        try:
+            print(f"[FETCH] Downloading {ticker} from {fetch_start} to {end_date}")
+            stock = yf.Ticker(ticker)
+            new_data = stock.history(start=fetch_start, end=end_date)
+            
+            if not new_data.empty:
+                # 컬럼명 표준화
+                new_data = new_data.rename(columns={
+                    'Open': 'open',
+                    'High': 'high',
+                    'Low': 'low',
+                    'Close': 'close',
+                    'Volume': 'volume'
+                })
+                
+                # 필요한 컬럼만 선택
+                new_data = new_data[['open', 'high', 'low', 'close', 'volume']]
+                new_data['ticker'] = ticker
+                
+                # DB 저장 (Upsert)
+                db_manager.save_data(new_data, ticker)
+                
+                # 데이터 다시 로드 (병합 효과)
+                df = db_manager.load_data(ticker, start_date, end_date)
+            elif df is None:
+                print(f"[WARN] No data found for {ticker}")
+                return None
+                
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch {ticker}: {e}")
+            # 에러 발생 시 기존 데이터라도 반환
+            if df is not None:
+                return df
             return None
-        
-        # 컬럼명 표준화
-        df = df.rename(columns={
-            'Open': 'open',
-            'High': 'high',
-            'Low': 'low',
-            'Close': 'close',
-            'Volume': 'volume'
-        })
-        
-        # 필요한 컬럼만 선택
-        df = df[['open', 'high', 'low', 'close', 'volume']]
-        df['ticker'] = ticker
-        
-        return df
-        
-    except Exception as e:
-        print(f"[ERROR] Failed to fetch {ticker}: {e}")
-        return None
+            
+    return df
 
 
 def get_universe_data(

@@ -23,6 +23,12 @@ from backtest.volatility_breakout import VolatilityBreakoutStrategy
 from backtest.bb_rsi_strategy import BBRSIStrategy
 from backtest.metrics import calculate_all_metrics, PerformanceMetrics
 from backtest.risk_manager import apply_risk_management_to_trades, RiskConfig
+from backtest.engine import run_universe_backtest, run_backtest_for_ticker
+from backtest.result_manager import ResultManager
+from dashboard.chart_utils import create_advanced_chart
+
+# 영구 저장소 관리자
+res_mgr = ResultManager()
 
 # 사용 가능한 전략 목록
 AVAILABLE_STRATEGIES = {
@@ -109,148 +115,10 @@ def load_all_data():
     return all_data
 
 
-def run_backtest_for_ticker(ticker: str, df: pd.DataFrame, strategy):
-    """단일 종목 백테스트 실행 및 상세 정보 반환 (모든 전략 호환)"""
-    result_df = strategy.generate_signals(df.copy())
-    
-    trades = []
-    for idx, row in result_df.iterrows():
-        if row.get('buy_signal', False) and pd.notna(row.get('exit_price')):
-            # row를 Series로 변환하여 name 속성 설정
-            row_series = row.copy()
-            row_series.name = idx
-            
-            trade = {
-                'date': idx,
-                'ticker': ticker,
-                'type': 'BUY',
-                'entry_price': row['entry_price'],
-                'exit_price': row['exit_price'],
-                'return': row['returns'],
-                # 전략의 get_trade_rationale 메서드 사용
-                'rationale': strategy.get_trade_rationale(row_series, ticker)
-            }
-            trades.append(trade)
-    
-    return result_df, trades
 
 
-def create_chart_with_signals(df: pd.DataFrame, trades: list, ticker: str, zoom_date=None):
-    """봘수/매도 시그널이 표시된 차트 생성
-    
-    Args:
-        zoom_date: 줄 중심 날짜 (상하 15일 범위 = 약 1개월)
-    """
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.03,
-        row_heights=[0.7, 0.3],
-        subplot_titles=(f'{ticker} 주가 차트', '거래량')
-    )
-    
-    # 캔들스틱 차트
-    fig.add_trace(
-        go.Candlestick(
-            x=df.index,
-            open=df['open'],
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
-            name='OHLC',
-            increasing_line_color='#22c55e',
-            decreasing_line_color='#ef4444'
-        ),
-        row=1, col=1
-    )
-    
-    # 목표가 라인
-    if 'target_price' in df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=df.index,
-                y=df['target_price'],
-                mode='lines',
-                name='목표가',
-                line=dict(color='#fbbf24', width=1, dash='dot'),
-                opacity=0.7
-            ),
-            row=1, col=1
-        )
-    
-    # 매수 시그널 마커
-    buy_dates = [t['date'] for t in trades]
-    buy_prices = [t['entry_price'] for t in trades]
-    buy_returns = [t['return'] for t in trades]
-    buy_texts = [f"매수: ₩{t['entry_price']:,.0f}<br>수익률: {t['return']*100:+.2f}%<br>클릭하여 확대" for t in trades]
-    
-    # 수익/손실에 따른 색상
-    marker_colors = ['#22c55e' if r > 0 else '#ef4444' for r in buy_returns]
-    
-    fig.add_trace(
-        go.Scatter(
-            x=buy_dates,
-            y=buy_prices,
-            mode='markers',
-            name='매수 시점',
-            marker=dict(
-                symbol='triangle-up',
-                size=15,
-                color=marker_colors,
-                line=dict(width=2, color='white')
-            ),
-            text=buy_texts,
-            hovertemplate='%{text}<extra></extra>',
-            customdata=list(range(len(trades)))
-        ),
-        row=1, col=1
-    )
-    
-    # 거래량
-    colors = ['#22c55e' if df['close'].iloc[i] >= df['open'].iloc[i] else '#ef4444' 
-              for i in range(len(df))]
-    
-    fig.add_trace(
-        go.Bar(
-            x=df.index,
-            y=df['volume'],
-            name='거래량',
-            marker_color=colors,
-            opacity=0.7
-        ),
-        row=2, col=1
-    )
-    
-    # 레이아웃
-    layout_config = dict(
-        height=600,
-        template='plotly_dark',
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
-        xaxis_rangeslider_visible=False,
-        margin=dict(l=50, r=50, t=80, b=50)
-    )
-    
-    # 줄 설정 (약 1개월 = 30일)
-    if zoom_date is not None:
-        from datetime import timedelta
-        zoom_start = zoom_date - timedelta(days=15)
-        zoom_end = zoom_date + timedelta(days=15)
-        layout_config['xaxis'] = dict(range=[zoom_start, zoom_end])
-        layout_config['xaxis2'] = dict(range=[zoom_start, zoom_end])
-    
-    fig.update_layout(**layout_config)
-    
-    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#334155')
-    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#334155')
-    
-    return fig
+
+
 
 
 def display_metrics(metrics: PerformanceMetrics, phase_name: str):
@@ -258,9 +126,10 @@ def display_metrics(metrics: PerformanceMetrics, phase_name: str):
     cols = st.columns(4)
     
     with cols[0]:
-        delta_color = "normal" if metrics.total_return >= 0 else "inverse"
-        st.metric("총 수익률", f"{metrics.total_return:+.1f}%", 
-                  delta=f"CAGR {metrics.cagr:+.1f}%", delta_color=delta_color)
+        delta_color = "normal" if metrics.avg_return_per_trade >= 0 else "inverse"
+        st.metric("평균 수익률", f"{metrics.avg_return_per_trade:+.2f}%", 
+                  # (전체 수익률 / 총 거래 수) 임을 명시
+                  delta=f"Total {metrics.total_return:+.1f}%", delta_color=delta_color)
     
     with cols[1]:
         st.metric("Sharpe Ratio", f"{metrics.sharpe_ratio:.2f}",
@@ -350,11 +219,46 @@ def main():
             st.error(f"데이터 로드 실패: {e}")
             st.stop()
     
-    # 탭 생성
-    tab1, tab2, tab3 = st.tabs(["📊 In-sample (2022)", "📈 Out-of-sample (2023)", "🎯 Forward Test (2024)"])
+    # 탭 생성 (전략 최적화 탭 추가 - Task 5)
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 In-sample (2022)", "📈 Out-of-sample (2023)", "🎯 Forward Test (2024)", "🧪 전략 최적화 (Summary)"])
     
     phases = ['IS', 'OOS', 'FT']
     tabs = [tab1, tab2, tab3]
+    
+    # 전략 최적화 탭
+    with tab4:
+        st.header("📊 전략 파라미터 최적화 요약")
+        st.info("Pre-calculated (Batch) 백테스트 결과를 비교합니다.")
+        
+        if st.button("🔄 저장된 결과 불러오기"):
+            saved_results = res_mgr.list_combos(strategy_name)
+            
+            if saved_results:
+                # DataFrame으로 변환
+                summary_df = pd.DataFrame(saved_results)
+                
+                # 파라미터 컬럼 분리
+                params_df = pd.json_normalize(summary_df['params'])
+                display_df = pd.concat([params_df, pd.json_normalize(summary_df['metrics'])], axis=1)
+                
+                # 정렬 (평균 수익률 기준 내림차순)
+                if 'avg_return' in display_df.columns:
+                    display_df = display_df.sort_values('avg_return', ascending=False)
+                
+                # 포맷팅
+                if 'win_rate' in display_df.columns:
+                    display_df['win_rate'] = display_df['win_rate'].apply(lambda x: f"{x:.1f}%")
+                if 'avg_return' in display_df.columns:
+                    display_df['avg_return'] = display_df['avg_return'].apply(lambda x: f"{x:+.2f}%")
+                if 'total_return' in display_df.columns:
+                    display_df['total_return'] = display_df['total_return'].apply(lambda x: f"{x*100:+.2f}%")
+                
+                st.write(f"총 {len(display_df)}개의 테스트 결과가 있습니다.")
+                st.dataframe(display_df, use_container_width=True)
+            else:
+                st.warning("저장된 일괄 백테스트 결과가 없습니다. generate_batch_results.py를 실행하세요.")
+    
+
     
     for phase, tab in zip(phases, tabs):
         with tab:
@@ -374,43 +278,72 @@ def main():
                 key=f"ticker_{phase}"
             )
             
-            # 백테스트 실행
-            df = phase_data['data'][selected_ticker]
-            result_df, trades = run_backtest_for_ticker(selected_ticker, df, strategy)
+            # 배치 결과에서 일치하는 파라미터 찾기
+            saved_combos = res_mgr.list_combos(strategy_name)
+            matched_combo = None
+            for combo in saved_combos:
+                if combo['params'] == param_values:
+                    matched_combo = combo
+                    break
             
-            # 전체 성능 지표 계산
-            all_trades = []
-            for ticker, ticker_df in phase_data['data'].items():
-                _, ticker_trades = run_backtest_for_ticker(ticker, ticker_df, strategy)
-                for t in ticker_trades:
-                    all_trades.append({
-                        'date': t['date'], 
-                        'return': t['return'],
-                        'entry_price': t['entry_price'],
-                        'exit_price': t['exit_price']
-                    })
+            if matched_combo:
+                # 미리 계산된 결과 로드
+                combo_id = matched_combo['id']
+                combo_dir = res_mgr._get_combo_dir(strategy_name, combo_id)
+                
+                # 모든 종목 거래 로드 (CSV)
+                all_trades_path = os.path.join(combo_dir, "모든종목", "trades.csv")
+                if os.path.exists(all_trades_path):
+                    all_trades_df = pd.read_csv(all_trades_path)
+                    all_trades = all_trades_df.to_dict('records')
+                    # 날짜 변환
+                    for t in all_trades:
+                        for date_key in ['date', '진입날짜', '청산날짜']:
+                            if date_key in t and t[date_key]:
+                                t[date_key] = pd.to_datetime(t[date_key])
+                else:
+                    all_trades = []
+                
+                metrics_dict = matched_combo['metrics']
+                metrics = PerformanceMetrics(
+                    avg_return_per_trade=metrics_dict['avg_return'],
+                    win_rate=metrics_dict['win_rate'],
+                    total_return=metrics_dict['total_return'],
+                    total_trades=len(all_trades),
+                    sharpe_ratio=0, cagr=0, mdd=0, expectancy=0 # 필요시 추가 계산
+                )
+            else:
+                st.warning("일치하는 배치 결과가 없습니다. 실시간으로 계산합니다.")
+                # 백테스트 실행 (실시간)
+                metrics, all_trades = run_universe_backtest(
+                    strategy,
+                    phase_data['data'],
+                    phase_data['start'],
+                    phase_data['end'],
+                    phase
+                )
             
-            # FT는 리스크 관리 적용 (슬리피지/수수료 반영)
-            if phase == 'FT' and all_trades:
-                from backtest.risk_manager import RiskManager, RiskConfig
-                rm = RiskManager(RiskConfig())
-                adjusted_trades = []
-                for t in all_trades:
-                    adj_return = rm.calculate_adjusted_return(t['entry_price'], t['exit_price'])
-                    adjusted_trades.append({
-                        'date': t['date'],
-                        'return': adj_return,
-                        'entry_price': t['entry_price'],
-                        'exit_price': t['exit_price']
-                    })
-                all_trades = adjusted_trades
-            
-            metrics = calculate_all_metrics(
-                all_trades,
-                phase_data['start'],
-                phase_data['end'],
-                10000000
-            )
+            # 선택된 종목 상세 분석 (배치 또는 실시간)
+            trades = []
+            if matched_combo:
+                ticker_dir = os.path.join(res_mgr._get_combo_dir(strategy_name, combo_id), selected_ticker.replace(".KS", ""))
+                trades_path = os.path.join(ticker_dir, "trades.csv")
+                if os.path.exists(trades_path):
+                    trades_df = pd.read_csv(trades_path)
+                    trades = trades_df.to_dict('records')
+                    # 날짜 변환
+                    for t in trades:
+                        for date_key in ['date', '진입날짜', '청산날짜']:
+                            if date_key in t and t[date_key]:
+                                t[date_key] = pd.to_datetime(t[date_key])
+                        if 'return' in t: t['return'] = float(t['return'])
+                        if '수익률' in t: t['수익률'] = float(t['수익률'])
+                
+                # result_df는 실시간 지표 계산을 위해 필요함 (보조지표 등)
+                result_df = strategy.generate_signals(phase_data['data'][selected_ticker].copy())
+            else:
+                df = phase_data['data'][selected_ticker]
+                result_df, trades = run_backtest_for_ticker(selected_ticker, df, strategy)
             
             # 선택된 종목 성능 지표 계산
             ticker_trades_for_metrics = [{
@@ -461,7 +394,18 @@ def main():
                 if st.session_state.zoom_date is not None and st.session_state.zoom_phase == phase:
                     zoom_date = st.session_state.zoom_date
                 
-                chart = create_chart_with_signals(result_df, trades, selected_ticker, zoom_date)
+                # 고급 차트 생성 (Task 3, 4)
+                # 주의: indicators는 result_df(백테스트 결과)에 포함되어 있음
+                indicators = strategy.get_indicators(result_df)
+                chart = create_advanced_chart(selected_ticker, result_df, trades, indicators)
+                
+                # 줌 적용 (Plotly zoom)
+                if zoom_date:
+                    from datetime import timedelta
+                    zoom_start = zoom_date - timedelta(days=15)
+                    zoom_end = zoom_date + timedelta(days=15)
+                    chart.update_xaxes(range=[zoom_start, zoom_end])
+                
                 st.plotly_chart(chart, use_container_width=True, key=f"chart_{phase}")
                 
                 # 줄 초기화 버튼
@@ -496,20 +440,65 @@ def main():
                                 with st.expander(f"{color} {date_str} ({return_pct:+.1f}%)", expanded=False):
                                     st.markdown(trade['rationale'])
             
-            # 전체 거래 통계
+            # 전체 거래 통계 (Task 6)
             st.markdown("---")
             st.markdown("### 📊 전체 거래 통계")
             
             if trades:
-                trade_df = pd.DataFrame([{
-                    '날짜': t['date'].strftime('%Y-%m-%d') if hasattr(t['date'], 'strftime') else t['date'],
-                    '진입가': f"₩{t['entry_price']:,.0f}",
-                    '청산가': f"₩{t['exit_price']:,.0f}",
-                    '수익률': f"{t['return']*100:+.2f}%",
-                    '결과': '✅ 수익' if t['return'] > 0 else '❌ 손실'
-                } for t in trades])
+                # DataFrame 변환
+                trade_df = pd.DataFrame(trades)
                 
-                st.dataframe(trade_df, use_container_width=True, hide_index=True)
+                # 상단 요약 (Task 6-2)
+                # 엔진에서 받은 metrics는 유니버스 전체, 여기는 선택된 ticker만.
+                # ticker_metrics가 이미 계산되어 있음.
+                avg_ret = ticker_metrics.avg_return_per_trade 
+                win_rt = ticker_metrics.win_rate
+                
+                # 명시적 계산 (ticker_metrics가 없을 경우 대비)
+                if 'return' in trade_df.columns:
+                    avg_ret = trade_df['return'].mean() * 100
+                    win_cnt = (trade_df['return'] > 0).sum()
+                    win_rt = win_cnt / len(trade_df) * 100
+                    
+                st.markdown(f"#### 💡 평균 수익률: `{avg_ret:+.2f}%` | 승률: `{win_rt:.1f}%`")
+                
+                # 컬럼 매핑 (Task 6-1)
+                column_map = {
+                    'date': '진입날짜',
+                    'exit_date': '청산날짜',
+                    'ticker': '종목코드',
+                    'type': '매매유형',
+                    'entry_price': '진입가',
+                    'exit_price': '청산가',
+                    'return': '수익률',
+                    'rationale': '매매근거'
+                }
+                
+                # exit_date가 없을 수도 있으니 확인
+                if 'exit_date' not in trade_df.columns:
+                    trade_df['exit_date'] = None
+                
+                trade_df = trade_df.rename(columns=column_map)
+                
+                # 날짜 포맷팅
+                for col in ['진입날짜', '청산날짜']:
+                    if col in trade_df.columns:
+                        trade_df[col] = pd.to_datetime(trade_df[col]).dt.strftime('%Y-%m-%d').fillna('-')
+                
+                # 숫자 포맷팅
+                trade_df['수익률'] = trade_df['수익률'].apply(lambda x: f"{x*100:+.2f}%")
+                trade_df['진입가'] = trade_df['진입가'].apply(lambda x: f"{x:,.0f}")
+                trade_df['청산가'] = trade_df['청산가'].apply(lambda x: f"{x:,.0f}")
+                
+                # 주요 컬럼만 표시
+                cols_to_show = ['진입날짜', '청산날짜', '진입가', '청산가', '수익률', '매매근거']
+                st.dataframe(
+                    trade_df[cols_to_show].sort_values('진입날짜', ascending=False), 
+                    use_container_width=True, 
+                    hide_index=True
+                )
+            else:
+                st.info("거래 내역이 없습니다.")
 
 
 if __name__ == "__main__":

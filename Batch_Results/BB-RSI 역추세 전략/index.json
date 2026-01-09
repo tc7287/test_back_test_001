@@ -1,0 +1,162 @@
+[
+  {
+    "id": 1,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.01
+    },
+    "metrics": {
+      "avg_return": 0.6546895023107799,
+      "win_rate": 45.0,
+      "total_return": 74.42761981054514
+    }
+  },
+  {
+    "id": 2,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.015
+    },
+    "metrics": {
+      "avg_return": 0.6754918673526743,
+      "win_rate": 51.578947368421055,
+      "total_return": 71.5887975945428
+    }
+  },
+  {
+    "id": 3,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.02
+    },
+    "metrics": {
+      "avg_return": 0.5368344320407786,
+      "win_rate": 54.347826086956516,
+      "total_return": 47.77639717492184
+    }
+  },
+  {
+    "id": 4,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.025
+    },
+    "metrics": {
+      "avg_return": 0.5492525507840198,
+      "win_rate": 55.0561797752809,
+      "total_return": 46.97474731943607
+    }
+  },
+  {
+    "id": 5,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.03
+    },
+    "metrics": {
+      "avg_return": 0.9068481785601377,
+      "win_rate": 62.7906976744186,
+      "total_return": 95.16726696343906
+    }
+  },
+  {
+    "id": 6,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.035
+    },
+    "metrics": {
+      "avg_return": 0.9316686149179968,
+      "win_rate": 64.28571428571429,
+      "total_return": 95.2053979050447
+    }
+  },
+  {
+    "id": 7,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.04
+    },
+    "metrics": {
+      "avg_return": 0.5810620241412312,
+      "win_rate": 64.19753086419753,
+      "total_return": 47.73223433269678
+    }
+  },
+  {
+    "id": 8,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.045
+    },
+    "metrics": {
+      "avg_return": 0.5693582880870554,
+      "win_rate": 66.25,
+      "total_return": 45.410809618712776
+    }
+  },
+  {
+    "id": 9,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 60,
+      "stop_loss": 0.05
+    },
+    "metrics": {
+      "avg_return": 0.5063539556825017,
+      "win_rate": 68.83116883116884,
+      "total_return": 35.33836176463509
+    }
+  },
+  {
+    "id": 10,
+    "params": {
+      "bb_period": 10,
+      "bb_std": 1.0,
+      "rsi_period": 7,
+      "rsi_oversold": 20,
+      "rsi_overbought": 65,
+      "stop_loss": 0.01
+    },
+    "metrics": {
+      "avg_return": 0.6546895023107799,
+      "win_rate": 45.0,
+      "total_return": 74.42761981054514
+    }
+  }
+]

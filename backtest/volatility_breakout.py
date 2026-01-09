@@ -9,7 +9,7 @@
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Any
 from backtest.base_strategy import BaseStrategy, StrategyParameter
 
 
@@ -89,6 +89,20 @@ class VolatilityBreakoutStrategy(BaseStrategy):
         # 매도가: 익일 시가 (다음날 시가 청산)
         df['exit_price'] = df['open'].shift(-1)
         
+        # 청산 날짜: 다음날
+        df['exit_date'] = df.index.shift(1, freq='D') # 이렇게 하면 영업일 아닐 수 있음.
+        # 정확히는 df['open'].shift(-1)을 가져온 행의 날짜...가 아니라,
+        # entry_price가 설정된 날(오늘) -> exit_price가 설정된 날(다음날)
+        # df['exit_date'] = df.index로 하고 shift(-1)?
+        # index shift는 freq 필요.
+        # 가장 정확한건: df['date'].shift(-1)
+        # 하지만 index가 date임.
+        # df.index.to_series().shift(-1)
+        
+        # 인덱스(날짜)를 컬럼으로 빼서 shift
+        dates = df.index.to_series()
+        df['exit_date'] = dates.shift(-1)
+
         # 수익률 계산
         df['returns'] = np.where(
             df['buy_signal'],
@@ -97,6 +111,18 @@ class VolatilityBreakoutStrategy(BaseStrategy):
         )
         
         return df
+        
+    def get_indicators(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        indicators = []
+        if 'target_price' in df.columns:
+            indicators.append({
+                'name': 'Target Price',
+                'data': df['target_price'],
+                'type': 'overlay',
+                'color': 'rgba(255, 165, 0, 0.7)',
+                'dash': 'dot'
+            })
+        return indicators
     
     def get_trade_rationale(self, row: pd.Series, ticker: str) -> str:
         """거래 근거 생성"""
